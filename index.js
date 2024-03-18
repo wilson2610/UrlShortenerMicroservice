@@ -26,35 +26,49 @@ const siteSchema = new mongoose.Schema({
 
 Site = mongoose.model('Site', siteSchema);
 
-app.route('/api/shorturl').post((req, res) => {
-  console.log(req.body.url);
-  var reqUrl = req.body.url;
-
-  
-
-  Site.estimatedDocumentCount((countErr, docCount) => {
-    if (countErr) {
-      res.send('estimatedDocumentCount error');
+app.post('/api/shorturl', (req, res) => {
+  var reqUrl = req.body.url;  
+  var urlNoProtocol = reqUrl.replace(/^https?\:\/\//i, "");
+  dns.lookup(urlNoProtocol, (err, address, family) => {
+    if (err) {
+      res.json({error: 'invalid url'});
     }
+    else {
+      console.log("add:" + address + "; family: " + family);
+      Site.estimatedDocumentCount((countErr, docCount) => {
+        if (countErr) {
+          res.send('estimatedDocumentCount error');
+        }
+        
+        const site = new Site({
+          original_url: reqUrl,
+          short_url: docCount + 1
+        });
+        
+        site.save((saveErr, savedUrl) => {
+          if (saveErr) {
+            res.send('save error');
+          }
     
-    const site = new Site({
-      original_url: reqUrl,
-      short_url: docCount + 1
-    });
-    
-    site.save((saveErr, savedUrl) => {
-      if (saveErr) {
-        res.send('save error');
-      }
-
-      res.json({
-        original_url: savedUrl.original_url,
-        short_url: savedUrl.short_url
+          res.json({
+            original_url: savedUrl.original_url,
+            short_url: savedUrl.short_url
+          });
+        });
       });
-    });
+    }
   });
 });
 
+app.get('/api/shorturl/:shorturl', (req, res) => {
+  Site.findOne({short_url: req.params.shorturl}, function(err, data) {
+    if (err)
+      return console.log(err);
+
+      console.log(data.original_url);
+    res.redirect(data.original_url);
+  });
+});
 
 app.get('/', function(req, res) {
   res.sendFile(process.cwd() + '/views/index.html');
